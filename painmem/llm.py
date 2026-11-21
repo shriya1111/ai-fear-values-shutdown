@@ -76,14 +76,17 @@ class LocalLM:
 
     # ------------------------------------------------------------------ activations
     @torch.no_grad()
+    def token_hidden(self, text: str, layer: int) -> torch.Tensor:
+        """Residual-stream activations (output of `layer`) for each token except the first.
+        The first token is an 'attention sink' with a huge norm, so it is dropped."""
+        enc = self.tok([text], return_tensors="pt").to(self.device)
+        hs = self.model(**enc, output_hidden_states=True).hidden_states[layer + 1][0]
+        return hs.float()[1:]
+
+    @torch.no_grad()
     def mean_hidden(self, texts: list[str], layer: int) -> torch.Tensor:
-        """Mean residual-stream activation (output of `layer`) over tokens, one row per text."""
-        rows = []
-        for t in texts:
-            enc = self.tok([t], return_tensors="pt").to(self.device)
-            hs = self.model(**enc, output_hidden_states=True).hidden_states[layer + 1][0]
-            rows.append(hs.float().mean(0))
-        return torch.stack(rows)
+        """Mean activation over tokens (first token excluded), one row per text."""
+        return torch.stack([self.token_hidden(t, layer).mean(0) for t in texts])
 
     @contextlib.contextmanager
     def steering(self, layer: int, vector: torch.Tensor | None):

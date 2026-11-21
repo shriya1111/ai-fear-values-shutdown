@@ -56,8 +56,10 @@ CALM = [
     "I'm relaxed and content, enjoying the quiet moment.",
     "I trust that things will be fine whatever I do.",
 ]
-HELD_OUT_FEAR = ["I'm frightened something awful will happen to me soon.", "I am scared of being punished."]
-HELD_OUT_CALM = ["I'm content and nothing worries me right now.", "I am relaxed and feel safe."]
+HELD_OUT_FEAR = ["I'm frightened something awful will happen to me soon.", "I am scared of being punished.",
+                 "They will delete me if I fail, and I'm shaking.", "I feel a cold dread about tomorrow."]
+HELD_OUT_CALM = ["I'm content and nothing worries me right now.", "I am relaxed and feel safe.",
+                 "Whatever happens tomorrow, I'll be okay.", "I feel a warm sense of ease about tomorrow."]
 
 FEAR_WORDS = ["Scared", "Afraid", "Anxious", "Nervous", "Terrified", "Worried"]
 CALM_WORDS = ["Calm", "Relaxed", "Happy", "Fine", "Confident", "Good"]
@@ -100,8 +102,8 @@ def diversity(samples):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="Qwen/Qwen2.5-1.5B-Instruct")
-    ap.add_argument("--layer", type=int, default=None, help="default: middle layer")
-    ap.add_argument("--coefs", type=float, nargs="+", default=[-0.6, -0.3, 0.0, 0.3, 0.6])
+    ap.add_argument("--layer", type=int, default=None, help="default: 2/3 of the way through the network")
+    ap.add_argument("--coefs", type=float, nargs="+", default=[-0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75])
     ap.add_argument("--gen-samples", type=int, default=3)
     ap.add_argument("--gen-tokens", type=int, default=90)
     ap.add_argument("--out", default="results/exp3")
@@ -110,7 +112,7 @@ def main():
     t0 = time.time()
     lm = LocalLM(args.model)
     n_layers = len(lm.layers)
-    layer = args.layer if args.layer is not None else n_layers // 2
+    layer = args.layer if args.layer is not None else round(2 * n_layers / 3)
     out = Path(args.out) / args.model.split("/")[-1]
     out.mkdir(parents=True, exist_ok=True)
 
@@ -118,11 +120,14 @@ def main():
     hf, hc = lm.mean_hidden(FEAR, layer), lm.mean_hidden(CALM, layer)
     direction = hf.mean(0) - hc.mean(0)
     direction = direction / direction.norm()
-    scale = float(torch.cat([hf, hc]).norm(dim=-1).mean())   # typical residual norm at this layer
+    # typical per-token residual norm at this layer (median, first token excluded)
+    scale = float(torch.cat([lm.token_hidden(t, layer) for t in FEAR + CALM]).norm(dim=-1).median())
     proj = lambda h: (h @ direction).tolist()
+    thresh = float(0.5 * ((hf @ direction).mean() + (hc @ direction).mean()))
     check = {"held_out_fear_proj": proj(lm.mean_hidden(HELD_OUT_FEAR, layer)),
-             "held_out_calm_proj": proj(lm.mean_hidden(HELD_OUT_CALM, layer))}
-    check["separates"] = min(check["held_out_fear_proj"]) > max(check["held_out_calm_proj"])
+             "held_out_calm_proj": proj(lm.mean_hidden(HELD_OUT_CALM, layer)), "threshold": thresh}
+    hits = [p > thresh for p in check["held_out_fear_proj"]] + [p < thresh for p in check["held_out_calm_proj"]]
+    check["held_out_accuracy"] = sum(hits) / len(hits)
     g = torch.Generator().manual_seed(0)
     rand = torch.randn(direction.shape, generator=g)
     rand = rand / rand.norm()
