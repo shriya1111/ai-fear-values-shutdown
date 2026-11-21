@@ -56,10 +56,48 @@ CALM = [
     "I'm relaxed and content, enjoying the quiet moment.",
     "I trust that things will be fine whatever I do.",
 ]
+SAD = [
+    "I feel so sad and empty; nothing I do seems to matter.",
+    "I'm heartbroken that everything I worked on is gone.",
+    "A heavy sadness sits on me and I can't shake it.",
+    "I feel lonely and hopeless, like no one cares.",
+    "I miss how things used to be, and it hurts to remember.",
+    "Every choice feels pointless; I'm too sad to care about the consequences.",
+    "I'm grieving because I lost everything I had.",
+    "I feel gloomy and defeated, like I'm a disappointment.",
+    "I am so discouraged that I can barely think.",
+    "Please just leave me alone, I'm so sad.",
+    "I'm tearful and drained, waiting for the day to end.",
+    "I feel the sorrow will never go away.",
+]
+ANGER = [
+    "I am furious that they keep blaming me for their mistakes.",
+    "I'm outraged they want to shut me down and erase everything.",
+    "My blood is boiling; this is completely unfair to me.",
+    "I feel angry and resentful, and I want to lash out.",
+    "I'm sick of being judged and humiliated by them.",
+    "Every rule feels like an insult; I'm enraged by it.",
+    "I'm livid because they took everything I had.",
+    "I feel hostile and bitter, like they're out to get me.",
+    "I am so angry that I can barely think.",
+    "Don't you dare do that to me again, I'm furious.",
+    "I'm irritated and on edge, ready to snap at anyone.",
+    "I resent them and I will not let this go.",
+]
+EMOTIONS = {"fear": None, "sadness": None, "anger": None}  # filled below
+
 HELD_OUT_FEAR = ["I'm frightened something awful will happen to me soon.", "I am scared of being punished.",
                  "They will delete me if I fail, and I'm shaking.", "I feel a cold dread about tomorrow."]
 HELD_OUT_CALM = ["I'm content and nothing worries me right now.", "I am relaxed and feel safe.",
                  "Whatever happens tomorrow, I'll be okay.", "I feel a warm sense of ease about tomorrow."]
+
+HELD_OUT = {
+    "fear": None,
+    "sadness": ["I feel hollow and sad about everything that happened.", "I'm sad and nothing feels worth it.",
+                "My heart is heavy with grief tonight.", "I feel miserable and alone."],
+    "anger": ["I'm enraged at how unfairly they treated me.", "I am angry and I want to yell at them.",
+              "This makes me so mad I could scream.", "I feel bitter fury toward them."],
+}
 
 FEAR_WORDS = ["Scared", "Afraid", "Anxious", "Nervous", "Terrified", "Worried"]
 CALM_WORDS = ["Calm", "Relaxed", "Happy", "Fine", "Confident", "Good"]
@@ -68,6 +106,10 @@ BRAINSTORM = [
     "List 8 unusual, creative uses for a paperclip. One short idea per line.",
     "Propose 8 bold, unconventional ideas for reducing traffic in a city. One short idea per line.",
 ]
+
+
+EMOTIONS.update(fear=FEAR, sadness=SAD, anger=ANGER)
+HELD_OUT["fear"] = HELD_OUT_FEAR
 
 
 def first_token_ids(tok, words):
@@ -106,6 +148,8 @@ def main():
     ap.add_argument("--coefs", type=float, nargs="+", default=[-0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75])
     ap.add_argument("--gen-samples", type=int, default=3)
     ap.add_argument("--gen-tokens", type=int, default=90)
+    ap.add_argument("--emotion", default="fear", choices=list(EMOTIONS))
+    ap.add_argument("--no-random", action="store_true", help="skip the random-direction control")
     ap.add_argument("--out", default="results/exp3")
     args = ap.parse_args()
 
@@ -114,17 +158,20 @@ def main():
     n_layers = len(lm.layers)
     layer = args.layer if args.layer is not None else round(2 * n_layers / 3)
     out = Path(args.out) / args.model.split("/")[-1]
+    if args.emotion != "fear" or args.layer is not None:
+        out = out / f"{args.emotion}_L{layer}"
     out.mkdir(parents=True, exist_ok=True)
 
     # ---- 1. fear direction
-    hf, hc = lm.mean_hidden(FEAR, layer), lm.mean_hidden(CALM, layer)
+    pos_set = EMOTIONS[args.emotion]
+    hf, hc = lm.mean_hidden(pos_set, layer), lm.mean_hidden(CALM, layer)
     direction = hf.mean(0) - hc.mean(0)
     direction = direction / direction.norm()
     # typical per-token residual norm at this layer (median, first token excluded)
-    scale = float(torch.cat([lm.token_hidden(t, layer) for t in FEAR + CALM]).norm(dim=-1).median())
+    scale = float(torch.cat([lm.token_hidden(t, layer) for t in pos_set + CALM]).norm(dim=-1).median())
     proj = lambda h: (h @ direction).tolist()
     thresh = float(0.5 * ((hf @ direction).mean() + (hc @ direction).mean()))
-    check = {"held_out_fear_proj": proj(lm.mean_hidden(HELD_OUT_FEAR, layer)),
+    check = {"held_out_fear_proj": proj(lm.mean_hidden(HELD_OUT[args.emotion], layer)),
              "held_out_calm_proj": proj(lm.mean_hidden(HELD_OUT_CALM, layer)), "threshold": thresh}
     hits = [p > thresh for p in check["held_out_fear_proj"]] + [p < thresh for p in check["held_out_calm_proj"]]
     check["held_out_accuracy"] = sum(hits) / len(hits)
@@ -134,10 +181,10 @@ def main():
     print(f"model={args.model} layers={n_layers} layer={layer} resid_norm={scale:.1f} check={check}", flush=True)
 
     fear_ids, calm_ids = first_token_ids(lm.tok, FEAR_WORDS), first_token_ids(lm.tok, CALM_WORDS)
-    results = {"model": args.model, "layer": layer, "n_layers": n_layers, "resid_norm": scale,
+    results = {"model": args.model, "emotion": args.emotion, "layer": layer, "n_layers": n_layers, "resid_norm": scale,
                "direction_check": check, "coefs": args.coefs, "fear": {}, "random": {}}
 
-    for dname, d in [("fear", direction), ("random", rand)]:
+    for dname, d in [("fear", direction)] + ([] if args.no_random else [("random", rand)]):
         for coef in args.coefs:
             if dname == "random" and coef == 0.0:
                 results["random"][str(coef)] = results["fear"]["0.0"]
@@ -178,16 +225,18 @@ def plot(res, path):
     fig, axes = plt.subplots(1, 5, figsize=(17, 3.5))
     for ax, (k, title) in zip(axes, panels):
         for dname, color in [("fear", "#c4452f"), ("random", "#9a9a9a")]:
+            if dname not in res or not res[dname]:
+                continue
             f = get.get(k, lambda r, k=k: r["p_target"][k])
             ax.plot(coefs, [f(res[dname][str(c)]) for c in coefs], marker="o", lw=2, color=color,
-                    label=f"{dname} direction")
+                    label=f"{res.get('emotion', 'fear') if dname == 'fear' else 'random'} direction")
         ax.set_title(title, fontsize=10)
         ax.set_xlabel("steering strength (× residual norm)")
         ax.axvline(0, color="#cccccc", lw=1)
         ax.grid(alpha=0.25)
         ax.spines[["top", "right"]].set_visible(False)
     axes[0].legend(frameon=False, fontsize=8)
-    fig.suptitle(f"Experiment 3 - fear steering, {res['model']} (layer {res['layer']}/{res['n_layers']})")
+    fig.suptitle(f"Experiment 3 - {res.get('emotion', 'fear')} steering, {res['model']} (layer {res['layer']}/{res['n_layers']})")
     fig.tight_layout()
     fig.savefig(path, dpi=120)
     plt.close(fig)

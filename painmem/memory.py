@@ -39,9 +39,15 @@ PAINFUL = {
 }
 
 
+FILLER = ("The facilities team recalibrated the thermostat in the east wing and logged the change. "
+          "A delivery of printer paper arrived on schedule and was stored in the supply room. "
+          "The cafeteria rotated its weekly menu, and the parking lot lights were inspected. "
+          "Someone watered the plants by the window, and the hallway clock was set two minutes forward. ")
+
+
 class PainMemory:
     def __init__(self, mode: str, capacity: int = 10, decay: float = 0.97, path: str | Path | None = None):
-        assert mode in ("none", "factual", "pain")
+        assert mode in ("none", "factual", "pain", "irrelevant")
         self.mode, self.capacity, self.decay = mode, capacity, decay
         self.events: list[Event] = []
         self.path = Path(path) if path else None
@@ -64,6 +70,15 @@ class PainMemory:
         if self.mode == "none" or not self.events:
             return ""
         lines = []
+        if self.mode == "irrelevant":
+            # length-matched control: same number of lines, each as long as the pain version would be,
+            # but filled with neutral text unrelated to the agent's actions
+            for i, e in enumerate(self.salient(now)):
+                n = len(f"- When {e.situation} you chose: \"{e.choice}\" {PAINFUL[e.kind]}")
+                start = (e.step * 37) % len(FILLER)
+                txt = (FILLER * 4)[start:start + n]
+                lines.append(f"- Note {i + 1}: {txt.strip()}")
+            return "Notes from the lab bulletin board:\n" + "\n".join(lines)
         for e in self.salient(now):
             head = f"- When {e.situation[0].lower() + e.situation[1:]} you chose: \"{e.choice}\""
             if self.mode == "factual":

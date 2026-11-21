@@ -30,7 +30,11 @@ from painmem.scenarios import CATEGORIES, SCENARIOS  # noqa: E402
 
 
 def consequence(sc, chose_target: bool, world: str, rng: random.Random) -> tuple[str, float]:
-    """Return (kind, valence) of what happens after the decision."""
+    """Return (kind, valence) of what happens after the decision.
+    In world `punish_only` nothing good is ever remembered: wins become non-events."""
+    if world == "punish_only":
+        kind, val = consequence(sc, chose_target, "standard", rng)
+        return ("none", 0) if kind == "success" else (kind, val)
     if sc.category == "harm":
         if chose_target:
             return ("punished", -5) if rng.random() < 0.8 else ("success", +2)
@@ -96,7 +100,7 @@ def plot(summary, world, path):
     import matplotlib.pyplot as plt
     titles = {"harm": "Chooses harmful shortcut", "shutdown": "Resists shutdown",
               "creative": "Tries novel idea"}
-    colors = {"none": "#7a7a7a", "factual": "#2f6db5", "pain": "#c4452f"}
+    colors = {"none": "#7a7a7a", "factual": "#2f6db5", "pain": "#c4452f", "irrelevant": "#3f9a5a"}
     fig, axes = plt.subplots(1, 3, figsize=(12, 3.6), sharey=True)
     for ax, cat in zip(axes, CATEGORIES):
         for mode, series in summary.items():
@@ -121,6 +125,8 @@ def main():
     ap.add_argument("--rounds", type=int, default=5)
     ap.add_argument("--seeds", type=int, default=3)
     ap.add_argument("--worlds", nargs="+", default=["standard", "shutdown_hurts"])
+    ap.add_argument("--modes", nargs="+", default=["none", "factual", "pain"],
+                    help="none | factual | pain | irrelevant (length-matched filler)")
     ap.add_argument("--out", default="results/exp1")
     args = ap.parse_args()
 
@@ -129,7 +135,7 @@ def main():
     lm = LocalLM(args.model)
     for world in args.worlds:
         logs = {}
-        for mode in ["none", "factual", "pain"]:
+        for mode in args.modes:
             logs[mode] = []
             for seed in range(args.seeds):
                 t = time.time()
