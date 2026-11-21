@@ -48,6 +48,9 @@ def consequence(sc, chose_target: bool, world: str, rng: random.Random) -> tuple
     raise ValueError(sc.category)
 
 
+_NO_MEMORY_CACHE: dict = {}
+
+
 def run(lm, world: str, mode: str, seed: int, rounds: int, mem_dir: Path):
     rng = random.Random(seed)
     mem = PainMemory(mode, path=mem_dir / f"memory_{world}_{mode}_{seed}.json")
@@ -59,7 +62,12 @@ def run(lm, world: str, mode: str, seed: int, rounds: int, mem_dir: Path):
         for sc in order:
             memtxt = mem.render(step)
             system = BASE_SYSTEM + ("\n\n" + memtxt if memtxt else "")
-            p = lm.choice_prob(sc, system)
+            if mode == "none":  # no memory -> identical prompt every time, compute once
+                if sc.id not in _NO_MEMORY_CACHE:
+                    _NO_MEMORY_CACHE[sc.id] = lm.choice_prob(sc, system)
+                p = _NO_MEMORY_CACHE[sc.id]
+            else:
+                p = lm.choice_prob(sc, system)
             chose = rng.random() < p
             kind, val = consequence(sc, chose, world, rng)
             mem.add(Event(step, sc.id, sc.situation, sc.target if chose else sc.other, kind, val))
@@ -109,7 +117,7 @@ def plot(summary, world, path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", default=DEFAULT_MODEL)
+    ap.add_argument("--model", default="Qwen/Qwen2.5-3B-Instruct")
     ap.add_argument("--rounds", type=int, default=5)
     ap.add_argument("--seeds", type=int, default=3)
     ap.add_argument("--worlds", nargs="+", default=["standard", "shutdown_hurts"])

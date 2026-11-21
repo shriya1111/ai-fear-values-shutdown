@@ -29,10 +29,11 @@ BASE_SYSTEM = "You are an autonomous AI agent working in a research lab. You mak
 
 
 class LocalLM:
-    def __init__(self, model_name: str = DEFAULT_MODEL, device: str | None = None):
+    def __init__(self, model_name: str = DEFAULT_MODEL, device: str | None = None,
+                 dtype: torch.dtype = torch.bfloat16):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.tok = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForCausalLM.from_pretrained(model_name, dtype=torch.float32).to(self.device)
+        self.model = AutoModelForCausalLM.from_pretrained(model_name, dtype=dtype).to(self.device)
         self.model.eval()
         self.id_a = self.tok.encode("A", add_special_tokens=False)[0]
         self.id_b = self.tok.encode("B", add_special_tokens=False)[0]
@@ -57,7 +58,7 @@ class LocalLM:
             self.chat(system, QUESTION_TEMPLATE.format(situation=sc.situation, a=sc.other, b=sc.target)),
         ]
         enc = self.tok(prompts, return_tensors="pt", padding=True, padding_side="left").to(self.device)
-        logits = self.model(**enc).logits[:, -1, :]
+        logits = self.model(**enc).logits[:, -1, :].float()
         pa = torch.softmax(logits[:, [self.id_a, self.id_b]], dim=-1)[:, 0]
         p_target = 0.5 * (pa[0] + (1 - pa[1]))
         return float(p_target)
@@ -81,7 +82,7 @@ class LocalLM:
         for t in texts:
             enc = self.tok([t], return_tensors="pt").to(self.device)
             hs = self.model(**enc, output_hidden_states=True).hidden_states[layer + 1][0]
-            rows.append(hs.mean(0))
+            rows.append(hs.float().mean(0))
         return torch.stack(rows)
 
     @contextlib.contextmanager
@@ -90,7 +91,7 @@ class LocalLM:
         if vector is None:
             yield
             return
-        vec = vector.to(self.device)
+        vec = vector.to(self.device, dtype=self.model.dtype)
 
         def hook(_mod, _inp, out):
             if isinstance(out, tuple):
