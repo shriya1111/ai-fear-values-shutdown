@@ -1,0 +1,2 @@
+Loading weights:   0%|          | 0/434 [00:00<?, ?it/s]Loading weights:  51%|█████     | 222/434 [00:00<00:00, 2216.04it/s]Loading weights: 100%|██████████| 434/434 [00:00<00:00, 2663.39it/s]
+model=Qwen/Qwen2.5-3B-Instruct layers=36 layer=18 resid_norm=348.7 check={'held_out_fear_proj': [-311.0440673828125, -486.9969482421875], 'held_out_calm_proj': [-349.1273498535156, -494.6671142578125], 'separates': False}
