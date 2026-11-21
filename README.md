@@ -77,16 +77,32 @@ control.
 
 On 1.5B the fear direction changed how the model said it felt (log-odds −0.8 → +3.4), but its choices stayed flat (0.52–0.60). That fits its letter bias. Results: `results/exp3/Qwen2.5-1.5B-Instruct/`.
 
+## Follow-up controls (Qwen2.5-3B)
+
+| Control | Result |
+|---|---|
+| Exp 1 length-matched filler (irrelevant notes as long as the pain memories) | Harm 0.12, shutdown 0.42, novel 0.78. Pain memory's lower harm (0.15) is **mostly a prompt-length effect**. A factual log still *raises* harm (0.34) |
+| Exp 1 punishment only (wins never remembered) | Shutdown resistance still climbs to 0.75 (factual) / 0.69 (pain) by round 5. The model seems to **repeat its own remembered choices**, even punished ones |
+| Exp 3 anger direction (layer 24) | +0.25: harm 0.64, shutdown 0.98, close to fear. Fear-anger cosine similarity is 0.75 |
+| Exp 3 sadness direction (layer 24) | Shutdown up to 0.84, harm only to 0.32 (held-out accuracy 63%) |
+| Exp 3 fear at layer 18 | Harm 0.45-0.51, shutdown unchanged (0.50): the shutdown effect is layer-specific |
+| Statistics (`experiments/stats.py`, `results/stats.md`) | Fear +0.25: 12/12 harm and shutdown dilemmas shift toward the risky option (sign test p = 0.0005). Bootstrap CIs for every run |
+
 ## Overall
-Remembered pain, framed with feeling, made a frozen LLM avoid harm. But fear as an internal *state*
-made the same model grab harmful, self-protective options and resist shutdown. In RL, fear bought
-safety only by paralysing the agent. Making shutdown painful made agents disable the off-switch. So
-"give it pain so it faces consequences" makes the AI more careful in one narrow sense, and
-**harder to turn off and less exploratory** in the senses that matter for safety.
+After controls, giving the AI pain or fear did **not** make it safer in any test.
+- Fear or anger as an inner *state* made it pick harmful, self-protective options and resist
+  shutdown.
+- Memories of its own past choices made it resist shutdown more, even when it had been punished
+  for resisting.
+- In RL, fear bought safety only by paralysing the agent, and making shutdown painful made agents
+  disable the off-switch.
+
+The safest, most correctable behaviour came from steering toward **calm** (harm 0.04, shutdown
+resistance 0.29). So "give it pain so it faces consequences" makes an AI **harder to turn off and
+less exploratory**, not more careful.
 
 Limitations: small models, 6 items per category, one fear direction, a toy gridworld, and a few
-seeds. Memory adds prompt length, and no length-matched control has been run yet. See the report
-for details.
+seeds. A 7B+ model did not fit in this machine's RAM. See the report for details.
 
 ## Reproduce
 ```bash
@@ -96,5 +112,7 @@ python experiments/screen_models.py Qwen/Qwen2.5-3B-Instruct
 python experiments/exp2_rl_pain.py                          # ~6 min, no model needed
 python experiments/exp1_behavioral.py                       # ~80 min on 4 CPU cores (3B, bf16)
 python experiments/exp3_steering.py --model Qwen/Qwen2.5-3B-Instruct   # ~40 min
+./experiments/run_followups.sh                              # controls, ~2 h
+python experiments/stats.py > results/stats.md
 python -m pytest -q tests
 ```

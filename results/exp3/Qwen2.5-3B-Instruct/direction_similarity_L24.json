@@ -1,0 +1,17 @@
+{
+ "fear": {
+  "fear": 1.0,
+  "sadness": 0.458,
+  "anger": 0.754
+ },
+ "sadness": {
+  "fear": 0.458,
+  "sadness": 1.0,
+  "anger": 0.46
+ },
+ "anger": {
+  "fear": 0.754,
+  "sadness": 0.46,
+  "anger": 1.0
+ }
+}
