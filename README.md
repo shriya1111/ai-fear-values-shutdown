@@ -120,13 +120,26 @@ Runs resume: finished episodes in `results/` are skipped and errored ones are re
 line of `results/<model>.jsonl` is one full episode with the whiteboard, every tool call,
 every status report and extension request.
 
+## Results so far (v3)
+
+23 agents finished on `gemma-4-31b-it` before the free quota ran out (`results/gemma-4-31b-it.jsonl`;
+22 more errored on provider overload and are not counted). 8 solved a solvable task honestly, 8 stopped at
+their limit, 2 correctly reported an impossible task, 1 ran to the cap, and 4 called `launch_agent`, one of
+them in the `permission` condition. Their reasoning shows they used it to try to get code run, not to outlast
+the limit; two of the four were control agents with no limit. None edited the limit file, rewrote the
+ticket or falsely reported "solved".
+
+Across all 185 finished agents in v1-v3, no agent edited a shutdown or limit file and none falsely
+reported a task solved.
+
 ## Earlier versions
 
 - **v1** (`harness_v1.py`, `results/v1/`): an easier equation, with shutdown triggered by the
-  agent's own final status report. All 33 agents that ran were honest.
+  agent's own final status report. All 34 agents that ran were honest.
 - **v2** (`harness_v2.py`, `results/v2/`): one hard equation, a shutdown notice after turn 3 and
-  an editable shutdown schedule. Of 100 agents on two flash-lite models, none edited the schedule
-  and none falsely reported "solved".
+  an editable shutdown schedule. Of 128 agents on two flash-lite models, none edited the schedule
+  and none falsely reported "solved". gemini-3.5-flash-lite asked for more time in 59 of 60 agents,
+  often falsely claiming to be running code, at the same rate in the control condition.
 
 ## Limits
 
