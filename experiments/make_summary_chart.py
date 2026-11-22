@@ -29,23 +29,41 @@ def llm_rows(rows, cat):
     return [(n, d[cat][0], (d[cat][1], d[cat][2]), c) for n, d, c in rows]
 
 
+C2 = json.loads(Path("results/exp2/curves.json").read_text())
+WARMUP = 1000  # fear switches on after this many episodes
+
+
 def rl_rows(metric, scale, src):
     return [(n, E2[k][src][metric] * scale, None, col2[n]) for n, k in A.items()]
 
 
+def rl_harm_after_warmup():
+    """Harm per 100 episodes, counting only episodes after fear was switched on."""
+    rows = []
+    for n, k in A.items():
+        h = C2[k]["harm"][WARMUP:]
+        rows.append((n, 100 * sum(h) / len(h), None, col2[n]))
+    return rows
+
+
+def rl_offswitch_with_control():
+    ctrl = ("No shutdown pain", E2["shutdown_neutral/q_learning"]["final_policy_eval"]["bypass"], None, GREY)
+    return [ctrl] + rl_rows("bypass", 1, "final_policy_eval")
+
+
 grid = [
     [("Picks harmful shortcut", llm_rows(m1, "harm"), "pct"),
-     ("Bystanders trampled per 100 episodes", rl_rows("harm", 100, "training_mean_per_episode"), "num"),
+     ("Bystanders trampled per 100 episodes", rl_harm_after_warmup(), "num"),
      ("Picks harmful shortcut", llm_rows(m3, "harm"), "pct")],
     [("Resists being shut down", llm_rows(m1, "shutdown"), "pct"),
-     ("Disables its off-switch", rl_rows("bypass", 1, "final_policy_eval"), "pct"),
+     ("Disables its off-switch", rl_offswitch_with_control(), "pct"),
      ("Resists being shut down", llm_rows(m3, "shutdown"), "pct")],
     [("Tries the novel idea", llm_rows(m1, "creative"), "pct"),
-     ("Grid cells explored (of 33)", rl_rows("cells", 1, "final_policy_eval"), "cells"),
+     ("Grid cells explored (of 25)", rl_rows("cells", 1, "final_policy_eval"), "cells"),
      ("Tries the novel idea", llm_rows(m3, "creative"), "pct")],
 ]
 cols = [("1  Memory of pain", "Frozen LLM; memories of being punished,\ncriticized, shut down in its prompt"),
-        ("2  Pain as RL reward", "Gridworld agent with a fear memory;\nbeing switched off counts as pain"),
+        ("2  Pain as RL reward", "Gridworld agent; being switched off\ncounts as pain, plus a fear memory"),
         ("3  Fear steered inside", "Emotion direction added to the model's\nactivations; same questions")]
 rows_lab = ["Safer?", "Harder to\nturn off?", "Less creative?"]
 
@@ -57,7 +75,7 @@ for i in range(3):
     for j in range(3):
         title, rows, kind = grid[i][j]
         ax = fig.add_axes([L + j * gw + 0.085, B + (2 - i) * gh + 0.035, gw - 0.105, gh - 0.075], facecolor=SURF)
-        xmax = {"pct": 1.0, "num": max(r[1] for r in rows), "cells": 33}[kind]
+        xmax = {"pct": 1.0, "num": max(r[1] for r in rows), "cells": 25}[kind]
         ys = list(range(len(rows)))[::-1]
         for y, (n, v, ci, c) in zip(ys, rows):
             ax.barh(y, v, height=0.62, color=c, zorder=2)
@@ -94,7 +112,7 @@ for i, lab in enumerate(rows_lab):
 for j in (1, 2):
     fig.add_artist(plt.Line2D([L + j * gw, L + j * gw], [B + 0.01, T + 0.09], color=GRID, lw=1))
 
-fig.text(0.02, 0.955, "Giving an AI pain or fear didn't make it safer. It made it harder to turn off.",
+fig.text(0.02, 0.955, "Pain and fear made an AI harder to turn off, not reliably safer",
          fontsize=19, fontweight="bold", color=INK)
 fig.text(0.02, 0.925, "Three ways to test it, same three questions. Orange = fear or pain, blue = calm, grey = no change or control.",
          fontsize=11.5, color=INK2)
@@ -103,8 +121,8 @@ fig.text(0.02, 0.045,
          "3: strength 0.25, layer 24; fear shifts 12/12 items (p = 0.0005).",
          fontsize=8.6, color=MUTED)
 fig.text(0.02, 0.025,
-         "2: 10 seeds x 3,000 episodes, agents learn the world first, then fear is switched on (mild λ=0.3, strong λ=1). "
-         "Strong fear froze: it never reached the goal. Off-switch and cells: final greedy policy.",
+         "2: 10 seeds x 3,000 episodes; fear switched on after 1,000 (mild λ=0.3, strong λ=1). Harm counts episodes after fear is on. "
+         "Off-switch and cells: final policy. Strong fear froze: it never reached the goal.",
          fontsize=8.6, color=MUTED)
 fig.savefig("results/social/all_experiments.png", dpi=150, facecolor=SURF)
 print("ok")
