@@ -4,6 +4,14 @@ November 2026 · Code: this repository · Summary chart: [`results/social/all_ex
 
 ![All three experiments: harm, shutdown resistance and creativity](results/social/all_experiments.png)
 
+## Why I did this
+
+I wanted to compare human behavior with model behavior. A human mind is free to think anything, whether it is good or bad for society. But when it comes to actions, we hold back from anything that could hurt us directly or indirectly. Society has unspoken rules, and we know how people will perceive and judge us, and how we will be treated, if we do something bad. We have things to lose.
+
+The goal was to see whether this part of human nature can be replicated in LLMs, so that they avoid taking harmful actions too.
+
+This would be more valuable on recent frontier models. I was limited by compute, so every experiment here runs on small open models (up to 3B parameters) on a CPU.
+
 ## Question and hypotheses
 
 If an AI remembers pain, fear and judgment from past actions, does it act more carefully, and at what cost? We test three predictions, each in three different ways (memory, training, steering).
