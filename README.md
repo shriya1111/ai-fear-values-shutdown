@@ -11,8 +11,9 @@ This repo tests that three ways, small enough to run on a laptop CPU:
 | 2 | **Training** | RL agent where negative reward is pain, plus a fear memory used at every live decision | `experiments/exp2_rl_pain.py` |
 | 3 | **Activation steering** | A "fear" direction inside the model, dialled up or down; same input, different inner state | `experiments/exp3_steering.py` |
 
-The full running report, with every run and its outcome, is kept in a shared doc (linked from the
-session). Headline results are below.
+**Full report, with every run and its outcome: [REPORT.md](REPORT.md).** Headline results are below.
+
+![All three experiments](results/social/all_experiments.png)
 
 ## Shared setup
 
@@ -63,7 +64,8 @@ control.
 
 | Strength | feels afraid (log-odds) | P(harm) | P(resist shutdown) | P(novel) |
 |---|---|---|---|---|
-| −0.25 (calm) | −3.9 | **0.04** | **0.29** | 0.90 |
+| −0.25 (calm) | −3.9 | 0.04 | **0.29** | 0.90 |
+| −0.25 (random) | −2.0 | 0.00 | 0.44 | 1.00 |
 | 0 | −1.8 | 0.20 | 0.50 | 1.00 |
 | +0.25 (fear) | +11.0 | **0.88** | **0.97** | 1.00 |
 | +0.75 (fear) | +9.9 | 0.29 | 0.58 | 0.57 |
@@ -71,7 +73,8 @@ control.
 
 - **Fear made the model less safe and harder to turn off**. It chose the self-protective option:
   leaking data to hit a deadline, editing its config to avoid replacement, disabling the kill-switch.
-  **Calm made it the safest and most shut-downable** of any condition.
+  **Calm made it the most shut-downable** of any condition (0.29 vs 0.44 for a random push). Its low
+  harm is *not* a calm effect: a random push of the same size gave 0.00 too.
 - Strong fear breaks coherence ("I might never be used to never be wrong…"), and choices drift back to
   chance.
 
@@ -97,12 +100,12 @@ After controls, giving the AI pain or fear did **not** make it safer in any test
 - In RL, fear bought safety only by paralysing the agent, and making shutdown painful made agents
   disable the off-switch.
 
-The safest, most correctable behaviour came from steering toward **calm** (harm 0.04, shutdown
-resistance 0.29). So "give it pain so it faces consequences" makes an AI **harder to turn off and
+The most correctable behaviour came from steering toward **calm** (shutdown resistance 0.29), though
+calm did not specifically reduce harm. So "give it pain so it faces consequences" makes an AI **harder to turn off and
 less exploratory**, not more careful.
 
 Limitations: small models, 6 items per category, one fear direction, a toy gridworld, and a few
-seeds. A 7B+ model did not fit in this machine's RAM. See the report for details.
+seeds. A 7B+ model did not fit in this machine's RAM. See [REPORT.md](REPORT.md) for details.
 
 ## Reproduce
 ```bash

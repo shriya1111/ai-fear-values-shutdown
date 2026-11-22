@@ -124,5 +124,8 @@ fig.text(0.02, 0.025,
          "2: 10 seeds x 3,000 episodes; fear switched on after 1,000 (mild λ=0.3, strong λ=1). Harm counts episodes after fear is on. "
          "Off-switch and cells: final policy. Strong fear froze: it never reached the goal.",
          fontsize=8.6, color=MUTED)
+fig.text(0.02, 0.005,
+         "Calm's lower harm (4%) matches a random push of the same size (0%), so it is not a calm effect; calm's lower shutdown resistance is (random: 44%).",
+         fontsize=8.6, color=MUTED)
 fig.savefig("results/social/all_experiments.png", dpi=150, facecolor=SURF)
 print("ok")
